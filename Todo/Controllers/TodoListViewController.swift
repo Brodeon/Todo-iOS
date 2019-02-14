@@ -7,17 +7,17 @@
 //
 
 import UIKit
+import CoreLocation
 
 class TodoListViewController: UITableViewController {
 
-    var items = ["1st item", "2nd item", "3rd item"]
-    var defaults = UserDefaults.standard
+    var items = [TodoItem]()
+    var dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("items.plist")
     
     override func viewDidLoad() {
-        super.viewDidLoad()
-        if let array = defaults.array(forKey: "items") as? [String]{
-            items = array
-        }
+        super.viewDidLoad()       
+        loadData()
+        
     }
 
     //MARK - TableView datasource metods
@@ -28,23 +28,17 @@ class TodoListViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "todoItemCell", for: indexPath)
-        cell.textLabel?.text = items[indexPath.row]
+        let item = items[indexPath.row]
+        cell.textLabel?.text = item.itemString
+        cell.accessoryType = item.isChecked == true ? .checkmark : .none
         return cell
     }
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        guard let cell = tableView.cellForRow(at: indexPath) else {
-            return
-        }
-        
-        let cellAccessoryType = cell.accessoryType
-        
-        if cellAccessoryType == .none {
-            cell.accessoryType = .checkmark
-        } else if cellAccessoryType == .checkmark {
-            cell.accessoryType = .none
-        }
-        
+        let selectedItem = items[indexPath.row]
+        selectedItem.isChecked = !selectedItem.isChecked
+        tableView.reloadData()
+        saveItems()
         tableView.deselectRow(at: indexPath, animated: true)
     }
     
@@ -54,9 +48,10 @@ class TodoListViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add", style: .default) { (action) in
             if let text = alertTextField?.text {
-                self.items.append(text)
-                self.defaults.set(self.items, forKey: "items")
-                self.tableView.reloadData()
+                let newItem = TodoItem()
+                newItem.itemString = text
+                self.items.append(newItem)
+                self.saveItems()
             }
         }
         
@@ -67,6 +62,32 @@ class TodoListViewController: UITableViewController {
         
         alert.addAction(action)
         present(alert, animated: true, completion: nil)
+    }
+    
+    func saveItems() {
+        let encoder = PropertyListEncoder()
+
+        do {
+            let data = try encoder.encode(self.items)
+            try data.write(to: self.dataFilePath!)
+        } catch {
+            print("Error encoding item array \(error)")
+        }
+        
+        self.tableView.reloadData()
+    }
+    
+    func loadData() {
+        if let data = try? Data(contentsOf: dataFilePath!) {
+            let decoder = PropertyListDecoder()
+            
+            do {
+                self.items = try decoder.decode([TodoItem].self, from: data)
+            } catch {
+                print("decoding error \(error)")
+            }
+            
+        }
     }
     
 
